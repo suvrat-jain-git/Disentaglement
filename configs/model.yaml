@@ -1,0 +1,39 @@
+model:
+  name: BioKinematicNet
+
+  morphology:
+    in_channels: 1
+    channels: [32, 64, 128, 256, 512]
+    strides: [1, 2, 1, 2, 2]
+    out_dim: 512
+
+  motion:
+    in_channels: 1
+    channels: [32, 64, 128, 256, 512]
+    strides:
+      - [1, 1, 1]
+      - [2, 2, 2]
+      - [1, 1, 1]
+      - [2, 2, 2]
+      - [1, 1, 1]
+    out_dim: 512
+
+  graph:
+    node_dim: 512
+    alpha_init: 0.1
+    alpha_learnable: true
+
+  projection:
+    in_dim: 512
+    out_dim: 256
+
+  identity:
+    in_dim: 512
+    hidden_dim: 512
+    embedding_dim: 512
+    num_classes: null
+
+  gender:
+    in_dim: 512
+    hidden_dim: 128
+    num_classes: 2

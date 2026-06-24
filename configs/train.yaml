@@ -1,0 +1,31 @@
+training:
+  epochs: 100
+  batch_size: 16
+  num_workers: 4
+  seed: 42
+
+  optimizer:
+    name: Adam
+    lr: 0.0003
+    weight_decay: 0.0005
+
+  scheduler:
+    name: CosineAnnealingLR
+    T_max: 100
+    eta_min: 0.000001
+
+  loss_weights:
+    identity: 1.0
+    triplet: 1.0
+    gender: 0.5
+
+  triplet:
+    margin: 0.3
+    mining: hard
+
+  checkpoint:
+    save_dir: experiments/
+    save_every: 10
+    keep_best: true
+
+  log_every: 50
