@@ -87,7 +87,7 @@ def main():
         w_identity=loss_w['identity'],
         w_triplet=loss_w['triplet'],
         w_gender=loss_w['gender'],
-        w_adversarial=loss_w.get('adversarial', 0.3),
+        w_orthogonality=loss_w.get('orthogonality', 0.05),
         triplet_margin=cfg['training']['triplet']['margin'],
         num_classes=num_classes,
     )
@@ -148,7 +148,7 @@ def main():
             f"id={train_losses['identity']:.4f}  "
             f"tri={train_losses['triplet']:.4f}  "
             f"gen={train_losses['gender']:.4f}  "
-            f"adv={train_losses['adversarial']:.4f}\n"
+            f"orth={train_losses['adversarial']:.4f}\n"
             f"  Val   — total={val_losses['total']:.4f}  "
             f"id={val_losses['identity']:.4f}  "
             f"tri={val_losses['triplet']:.4f}  "

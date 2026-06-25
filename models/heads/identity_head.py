@@ -21,17 +21,15 @@ class IdentityHead(nn.Module):
             "unique identities in the training split."
         )
 
-        # Projection layers — one per branch.
-        # Each compresses 512 → 256, forcing a compact summary.
-        # bias=True: no BN after projection, so bias is meaningful.
+        # Project Fk only: 512 → 256
+        # Identity head uses Fk exclusively — Fm is not used here.
+        # Fm is supervised by the gender head only.
         self.fm_proj = nn.Linear(node_dim, proj_dim)
         self.fk_proj = nn.Linear(node_dim, proj_dim)
 
-        # After concat: [B, proj_dim*2] = [B, 512]
-        # FC maps this to the embedding space.
-        # bias=False: BNNeck immediately follows, which has its own
-        # learnable shift (beta) — conv/linear bias would be redundant.
-        fused_dim = proj_dim * 2  # 256 + 256 = 512
+        # bias=False: BNNeck immediately follows.
+        # FC maps concat(Fm, Fk) → embedding
+        fused_dim = proj_dim * 2
         self.fc = nn.Linear(fused_dim, hidden_dim, bias=False)
 
         # BNNeck: a single BatchNorm1d layer with no affine transformation
@@ -47,22 +45,25 @@ class IdentityHead(nn.Module):
 
     def _embed(self, Fm_prime, Fk_prime):
         """
-        Internal helper: runs the shared projection + FC path.
-        Returns the pre-BNNeck embedding [B, 512].
-        Both forward() and get_embedding() call this — no code duplication.
+        Internal helper: returns the pre-BNNeck embedding [B, 512].
+
+        Identity uses Fk_prime ONLY.
+        Fm_prime argument is accepted for API compatibility but not used here.
+
+        Rationale:
+            If identity supervision flows through concat(Fm, Fk), identity
+            gradients push gender information into Fm, contaminating the
+            morphology branch. Using Fk only means:
+                Fm is shaped purely by gender supervision  (body shape)
+                Fk is shaped by identity + triplet          (gait dynamics)
+            Fm still contributes context to Fk via the graph interaction.
         """
-        # Project each branch independently
-        # [B, 512] -> [B, 256]
+        # Project Fk_prime: [B, 512] -> [B, 256]
         fm_proj = self.fm_proj(Fm_prime)
         fk_proj = self.fk_proj(Fk_prime)
 
-        # Concatenate along feature dimension
-        # [B, 256] + [B, 256] -> [B, 512]
+        # FC: [B, 256] -> [B, 512] — identity embedding
         fused = torch.cat([fm_proj, fk_proj], dim=1)
-
-        # FC: [B, 512] -> [B, 512]
-        # This is the identity embedding — the representation we care about
-        # for retrieval, t-SNE, and triplet loss.
         embedding = self.fc(fused)
 
         return embedding

@@ -61,11 +61,6 @@ class Trainer:
         n_batches = 0
         t_start   = time.time()
 
-        # GRL lambda schedule: 0 at epoch 1, linearly increases to max
-        max_epochs = self.cfg['training']['epochs']
-        grl_max    = self.cfg['training'].get('grl_lambda_max', 0.1)
-        grl_lambda = grl_max * ((epoch - 1) / max_epochs)
-        self.model.set_grl_lambda(grl_lambda)
 
         for batch_idx, (frames, id_labels, gender_labels) in enumerate(self.train_loader):
             # Move to device

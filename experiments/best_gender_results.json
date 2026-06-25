@@ -1,13 +1,13 @@
 {
-  "gender_head_accuracy": 0.7222222089767456,
-  "gender_head_balanced_accuracy": 0.7727272727272727,
-  "gender_head_F1_Male": 0.7058823529411764,
-  "gender_head_F1_Female": 0.7368421052631579,
+  "gender_head_accuracy": 0.7314814925193787,
+  "gender_head_balanced_accuracy": 0.7803030303030303,
+  "gender_head_F1_Male": 0.7184466019417475,
+  "gender_head_F1_Female": 0.743362831858407,
   "gender_head_precision_Male": 1.0,
-  "gender_head_recall_Male": 0.5454545454545454,
-  "gender_head_precision_Female": 0.5833333333333334,
+  "gender_head_recall_Male": 0.5606060606060606,
+  "gender_head_precision_Female": 0.5915492957746479,
   "gender_head_recall_Female": 1.0,
-  "linear_probe_Fm": 0.6136363744735718,
-  "linear_probe_Fk": 0.7045454382896423,
-  "disentanglement_gap": -0.09090906381607056
+  "linear_probe_Fm": 0.8181818127632141,
+  "linear_probe_Fk": 0.5,
+  "disentanglement_gap": 0.3181818127632141
 }

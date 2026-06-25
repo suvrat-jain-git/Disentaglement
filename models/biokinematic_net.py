@@ -7,7 +7,6 @@ from models.motion.motion_encoder import MotionEncoder
 from models.graph.bio_kinematic_graph import BioKinematicGraph
 from models.heads.gender_head import GenderHead
 from models.heads.identity_head import IdentityHead
-from models.grl import GenderAdversary
 
 
 class BioKinematicNet(nn.Module):
@@ -67,16 +66,6 @@ class BioKinematicNet(nn.Module):
             in_dim=cfg['gender']['in_dim'],
             hidden_dim=cfg['gender']['hidden_dim'],
             num_classes=cfg['gender']['num_classes'],
-        )
-
-        # ── Gender adversary on Fk (via GRL) ──────────────────────────────
-        # Fk → GRL → gender_adversary → adversarial gender loss
-        # The GRL makes Fk uninformative about gender.
-        self.gender_adversary = GenderAdversary(
-            in_dim=cfg['gender']['in_dim'],
-            hidden_dim=cfg['gender']['hidden_dim'],
-            num_classes=cfg['gender']['num_classes'],
-            lambda_=cfg['gender'].get('grl_lambda', 0.1),
         )
 
         # ── Identity head (both branches, fused) ───────────────────────────
@@ -154,11 +143,6 @@ class BioKinematicNet(nn.Module):
         # [B, 512] → [B, 2]
         gender_logits = self.gender_head(Fm_prime)
 
-        # ── Step 4b: Gender adversary on Fk ───────────────────────────────
-        # Fk → GRL → adversary — makes Fk uninformative about gender.
-        # GRL reverses gradients: adversary tries to predict gender,
-        # Fk tries to fool it → gender removed from motion features.
-        gender_logits_adv = self.gender_adversary(Fk_prime)
 
         # ── Step 5: Identity head (both branches) ─────────────────────────
         # Routes both Fm' and Fk' — identity depends on shape AND motion.
@@ -187,8 +171,7 @@ class BioKinematicNet(nn.Module):
         # disentanglement verification.
         return {
             'gender_logits':     gender_logits,      # [B, 2]
-            'gender_logits_adv': gender_logits_adv,  # [B, 2] adversary on Fk
-            'id_logits':         id_logits,           # [B, num_classes] (bn_feat)
+            'id_logits':     id_logits,        # [B, num_classes]
             'embedding':         embedding,           # [B, 512]
             'Fm':                Fm,                  # [B, 512] pre-graph
             'Fk':                Fk,                  # [B, 512] pre-graph
@@ -215,13 +198,6 @@ class BioKinematicNet(nn.Module):
         Fm     = self.morph_encoder(gei)
         Fk     = self.motion_encoder(motion)
         return self.graph.message_stats(Fm, Fk)
-
-    def set_grl_lambda(self, lambda_):
-        """
-        Update GRL strength during training.
-        Call this each epoch to gradually increase adversarial pressure.
-        """
-        self.gender_adversary.set_lambda(lambda_)
 
     def count_parameters(self):
         """

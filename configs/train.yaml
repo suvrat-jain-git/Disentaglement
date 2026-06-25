@@ -21,18 +21,16 @@ training:
   loss_weights:
     identity: 0.5           # Reduced — triplet should dominate for retrieval
     triplet: 1.0
-    gender: 0.5             # Increased from 0.3 — gender head kept collapsing
-    adversarial: 0.1        # Reduced from 0.3 — GRL was too strong early
+    gender: 0.5             # Gender supervision on Fm
+    orthogonality: 0.05     # Force Fm ⊥ Fk — replaces GRL
 
   # --- ArcFace settings ---
   arcface:
     s: 32.0                 # Reduced from 64 — with 117 classes, 64 is too large
     m: 0.3                  # Reduced from 0.5 — margin too aggressive for small #classes
 
-  # --- GRL schedule ---
-  grl_lambda_max: 0.1       # Max GRL strength (reached at epoch 100)
-                            # Starts at 0 (epoch 1), increases linearly
-                            # Reduced from 0.3 — was too aggressive early
+  # --- GRL removed ---
+  # Orthogonality loss replaces GRL for disentanglement
 
   # --- Triplet Loss Settings ---
   triplet:
