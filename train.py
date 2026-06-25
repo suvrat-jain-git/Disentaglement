@@ -5,15 +5,19 @@ import torch
 import yaml
 import os
 
+
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    # Deterministic ops where possible — may slow down training slightly
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark     = False
 
+
 def load_configs():
+    """Merge the three yaml config files into a single dict."""
     cfg = {}
     for name, path in [
         ('model',   'configs/model.yaml'),
@@ -24,6 +28,7 @@ def load_configs():
             cfg.update(yaml.safe_load(f))
     return cfg
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--resume', default=None,
@@ -32,15 +37,19 @@ def parse_args():
                         help='cuda or cpu')
     return parser.parse_args()
 
+
 def main():
     args = parse_args()
     cfg  = load_configs()
 
+    # ── Reproducibility ────────────────────────────────────────────────────
     set_seed(cfg['training']['seed'])
 
+    # ── Device ─────────────────────────────────────────────────────────────
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
     print(f"Device: {device}")
 
+    # ── Dataloaders ─────────────────────────────────────────────────────────
     from datasets.fvg_b import build_fvgb_dataloaders
     loaders = build_fvgb_dataloaders(cfg)
 
@@ -49,24 +58,29 @@ def main():
     print(f"Train batches:       {len(loaders['train'])}")
     print(f"Val batches:         {len(loaders['val'])}")
     print(f"Test subjects:       {len(loaders['test_ids'])}")
-    for split_name, protocols in [('1%', loaders['protocols_1pct']),
-                                   ('5%', loaders['protocols_5pct'])]:
-        for pname, pdata in protocols.items():
-            print(f"  [{split_name}] {pname}: "
+    for pname, pdata in loaders['protocols'].items():
+        if pdata is None:
+            print(f"  {pname}: SKIPPED (not applicable to this test split)")
+        else:
+            print(f"  {pname}: "
                   f"gallery={len(pdata['gallery'].dataset)}  "
                   f"probe={len(pdata['probe'].dataset)}")
 
+    # ── Model ──────────────────────────────────────────────────────────────
+    # Inject num_classes into model config before building
     cfg['model']['identity']['num_classes'] = num_classes
     cfg['model']['gender']['num_classes']   = cfg['dataset']['gender_classes']
 
     from models.biokinematic_net import BioKinematicNet
     model = BioKinematicNet(cfg['model']).to(device)
 
+    # Print parameter breakdown
     breakdown = model.count_parameters()
     print("\nParameter breakdown:")
     for k, v in breakdown.items():
         print(f"  {k:<20} {v:>10,}")
 
+    # ── Optimizer & Scheduler ──────────────────────────────────────────────
     opt_cfg  = cfg['training']['optimizer']
     sch_cfg  = cfg['training']['scheduler']
 
@@ -81,6 +95,7 @@ def main():
         eta_min=sch_cfg['eta_min'],
     )
 
+    # ── Loss ───────────────────────────────────────────────────────────────
     from losses.combined_loss import CombinedLoss
     loss_w   = cfg['training']['loss_weights']
     loss_fn  = CombinedLoss(
@@ -91,6 +106,7 @@ def main():
         num_classes=num_classes,
     )
 
+    # ── Trainer ────────────────────────────────────────────────────────────
     from trainers.trainer import Trainer
     trainer = Trainer(
         model=model,
@@ -103,19 +119,26 @@ def main():
         device=device,
     )
 
+    # ── Resume ─────────────────────────────────────────────────────────────
     start_epoch = 1
     if args.resume:
         start_epoch = trainer.load_checkpoint(args.resume) + 1
 
+    # ── Training loop ──────────────────────────────────────────────────────
     epochs = cfg['training']['epochs']
     print(f"\nStarting training from epoch {start_epoch} to {epochs}\n")
 
     for epoch in range(start_epoch, epochs + 1):
+        # Train
         train_losses = trainer.train_epoch(epoch)
+
+        # Validate
         val_losses = trainer.val_epoch(epoch)
 
+        # LR step
         scheduler.step()
 
+        # Print epoch summary
         print(
             f"\nEpoch {epoch:03d}/{epochs} Summary | "
             f"LR={scheduler.get_last_lr()[0]:.6f}\n"
@@ -126,15 +149,22 @@ def main():
             f"  Val   — total={val_losses['total']:.4f}  "
             f"id={val_losses['identity']:.4f}  "
             f"tri={val_losses['triplet']:.4f}  "
-            f"gen={val_losses['gender']:.4f}\n"
+            f"gen={val_losses['gender']:.4f}  "
+            f"gen_acc={val_losses['gender_acc']:.3f}\n"
         )
 
-        is_best = val_losses['total'] < trainer.best_val_loss
+        # Checkpoint
+        # Use train loss for best model selection.
+        # Val loss is unreliable with small val sets and many identity classes —
+        # it has been increasing since epoch 1 despite train loss improving.
+        # Best checkpoint = lowest train total loss.
+        is_best = train_losses['total'] < trainer.best_val_loss
         if is_best:
-            trainer.best_val_loss = val_losses['total']
+            trainer.best_val_loss = train_losses['total']
         trainer.save_checkpoint(epoch, val_losses, is_best=is_best)
 
     print("Training complete.")
+
 
 if __name__ == '__main__':
     main()

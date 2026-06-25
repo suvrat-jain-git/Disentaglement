@@ -1,7 +1,9 @@
 training:
   epochs: 100
-  batch_size: 16
+  batch_size: 16      # fallback only — PKSampler overrides with P*K
   num_workers: 4
+  P: 8               # identities per batch (PKSampler)
+  K: 4               # samples per identity per batch (PKSampler)
   seed: 42
 
   optimizer:
@@ -11,21 +13,28 @@ training:
 
   scheduler:
     name: CosineAnnealingLR
-    T_max: 100
+    T_max: 100              # Matches epochs
     eta_min: 0.000001
 
+  # --- Loss Weights ---
+  # Total loss = w_id * L_identity + w_tri * L_triplet + w_gen * L_gender
   loss_weights:
     identity: 1.0
     triplet: 1.0
-    gender: 0.5
+    gender: 1.0             # Increased from 0.5 — gender head was collapsing
+                            # due to identity loss dominating. Equal weight
+                            # gives gender sufficient gradient signal.
 
+  # --- Triplet Loss Settings ---
   triplet:
     margin: 0.3
-    mining: hard
+    mining: hard            # Hard negative mining
 
+  # --- Checkpointing ---
   checkpoint:
     save_dir: experiments/
-    save_every: 10
-    keep_best: true
+    save_every: 10          # Save checkpoint every N epochs
+    keep_best: true         # Always keep best validation checkpoint
 
-  log_every: 50
+  # --- Logging ---
+  log_every: 50             # Log every N batches
