@@ -1,16 +1,18 @@
 model:
   name: BioKinematicNet
 
+  # --- Morphology Branch ---
   morphology:
-    in_channels: 1
+    in_channels: 1          # Single-channel silhouette (GEI is grayscale)
     channels: [32, 64, 128, 256, 512]
-    strides: [1, 2, 1, 2, 2]
+    strides:   [1,  2,  1,   2,   2]  # Learned spatial downsampling
     out_dim: 512
 
+  # --- Motion Branch ---
   motion:
-    in_channels: 1
+    in_channels: 1          # Single-channel motion difference volume
     channels: [32, 64, 128, 256, 512]
-    strides:
+    strides:                # (temporal, height, width) per layer
       - [1, 1, 1]
       - [2, 2, 2]
       - [1, 1, 1]
@@ -18,22 +20,26 @@ model:
       - [1, 1, 1]
     out_dim: 512
 
+  # --- Bio-Kinematic Graph ---
   graph:
-    node_dim: 512
-    alpha_init: 0.1
-    alpha_learnable: true
+    node_dim: 512           # Fm and Fk both live in R^512
+    alpha_init: 0.1         # Initial scale of cross-branch message
+    alpha_learnable: true   # Let the network adjust interaction strength
 
+  # --- Projection (before fusion) ---
   projection:
     in_dim: 512
-    out_dim: 256
+    out_dim: 256            # Each branch compressed before concat
 
+  # --- Identity Head ---
   identity:
-    in_dim: 512
+    in_dim: 512             # 256 + 256 after projection + concat
     hidden_dim: 512
-    embedding_dim: 512
-    num_classes: null
+    embedding_dim: 512      # Final identity embedding size
 
+  # --- Gender Head ---
   gender:
-    in_dim: 512
+    in_dim: 512             # Uses Fm' only (morphology after graph)
     hidden_dim: 128
-    num_classes: 2
+    num_classes: 2          # Male / Female
+    grl_lambda: 0.0         # Initial value — overridden by schedule in trainer

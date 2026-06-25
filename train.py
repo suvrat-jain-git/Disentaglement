@@ -80,6 +80,18 @@ def main():
     for k, v in breakdown.items():
         print(f"  {k:<20} {v:>10,}")
 
+    # ── Loss ───────────────────────────────────────────────────────────────
+    from losses.combined_loss import CombinedLoss
+    loss_w  = cfg['training']['loss_weights']
+    loss_fn = CombinedLoss(
+        w_identity=loss_w['identity'],
+        w_triplet=loss_w['triplet'],
+        w_gender=loss_w['gender'],
+        w_adversarial=loss_w.get('adversarial', 0.3),
+        triplet_margin=cfg['training']['triplet']['margin'],
+        num_classes=num_classes,
+    )
+
     # ── Optimizer & Scheduler ──────────────────────────────────────────────
     opt_cfg  = cfg['training']['optimizer']
     sch_cfg  = cfg['training']['scheduler']
@@ -95,16 +107,6 @@ def main():
         eta_min=sch_cfg['eta_min'],
     )
 
-    # ── Loss ───────────────────────────────────────────────────────────────
-    from losses.combined_loss import CombinedLoss
-    loss_w   = cfg['training']['loss_weights']
-    loss_fn  = CombinedLoss(
-        w_identity=loss_w['identity'],
-        w_triplet=loss_w['triplet'],
-        w_gender=loss_w['gender'],
-        triplet_margin=cfg['training']['triplet']['margin'],
-        num_classes=num_classes,
-    )
 
     # ── Trainer ────────────────────────────────────────────────────────────
     from trainers.trainer import Trainer
@@ -145,7 +147,8 @@ def main():
             f"  Train — total={train_losses['total']:.4f}  "
             f"id={train_losses['identity']:.4f}  "
             f"tri={train_losses['triplet']:.4f}  "
-            f"gen={train_losses['gender']:.4f}\n"
+            f"gen={train_losses['gender']:.4f}  "
+            f"adv={train_losses['adversarial']:.4f}\n"
             f"  Val   — total={val_losses['total']:.4f}  "
             f"id={val_losses['identity']:.4f}  "
             f"tri={val_losses['triplet']:.4f}  "

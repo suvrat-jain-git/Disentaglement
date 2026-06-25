@@ -19,15 +19,24 @@ training:
   # --- Loss Weights ---
   # Total loss = w_id * L_identity + w_tri * L_triplet + w_gen * L_gender
   loss_weights:
-    identity: 1.0
+    identity: 0.5           # Reduced — triplet should dominate for retrieval
     triplet: 1.0
-    gender: 1.0             # Increased from 0.5 — gender head was collapsing
-                            # due to identity loss dominating. Equal weight
-                            # gives gender sufficient gradient signal.
+    gender: 0.5             # Increased from 0.3 — gender head kept collapsing
+    adversarial: 0.1        # Reduced from 0.3 — GRL was too strong early
+
+  # --- ArcFace settings ---
+  arcface:
+    s: 32.0                 # Reduced from 64 — with 117 classes, 64 is too large
+    m: 0.3                  # Reduced from 0.5 — margin too aggressive for small #classes
+
+  # --- GRL schedule ---
+  grl_lambda_max: 0.1       # Max GRL strength (reached at epoch 100)
+                            # Starts at 0 (epoch 1), increases linearly
+                            # Reduced from 0.3 — was too aggressive early
 
   # --- Triplet Loss Settings ---
   triplet:
-    margin: 0.3
+    margin: 0.5             # Increased from 0.3 — previous margin too easy
     mining: hard            # Hard negative mining
 
   # --- Checkpointing ---

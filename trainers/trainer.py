@@ -55,10 +55,17 @@ class Trainer:
         # Accumulators for epoch-level averages
         accum = {
             'total': 0.0, 'identity': 0.0, 'triplet': 0.0,
-            'gender': 0.0, 'mean_pos_dist': 0.0, 'mean_neg_dist': 0.0,
-        }
+            'gender': 0.0, 'adversarial': 0.0,
+            'mean_pos_dist': 0.0, 'mean_neg_dist': 0.0,
+            }
         n_batches = 0
         t_start   = time.time()
+
+        # GRL lambda schedule: 0 at epoch 1, linearly increases to max
+        max_epochs = self.cfg['training']['epochs']
+        grl_max    = self.cfg['training'].get('grl_lambda_max', 0.1)
+        grl_lambda = grl_max * ((epoch - 1) / max_epochs)
+        self.model.set_grl_lambda(grl_lambda)
 
         for batch_idx, (frames, id_labels, gender_labels) in enumerate(self.train_loader):
             # Move to device
@@ -125,8 +132,9 @@ class Trainer:
 
         accum = {
             'total': 0.0, 'identity': 0.0, 'triplet': 0.0,
-            'gender': 0.0, 'mean_pos_dist': 0.0, 'mean_neg_dist': 0.0,
-        }
+            'gender': 0.0, 'adversarial': 0.0,
+            'mean_pos_dist': 0.0, 'mean_neg_dist': 0.0,
+            }
         n_batches = 0
 
         # Collect all predictions across the full val set before
@@ -162,14 +170,17 @@ class Trainer:
 
         # Compute losses over the full val set — stable and correct
         l_identity = self.loss_fn.ce_identity(all_id_logits, all_id_labels)
-        l_triplet, triplet_stats = self.loss_fn.triplet(all_embeddings, all_id_labels)
-        gender_w   = self.loss_fn.gender_weights.to(all_gender_logits.device)
-        l_gender   = torch.nn.functional.cross_entropy(
+        l_triplet, triplet_stats = self.loss_fn.triplet(
+            all_embeddings, all_id_labels
+        )
+        gender_w = self.loss_fn.gender_weights.to(all_gender_logits.device)
+        l_gender = torch.nn.functional.cross_entropy(
             all_gender_logits, all_gender_labels, weight=gender_w
         )
-        l_total    = (self.loss_fn.w_identity * l_identity
-                    + self.loss_fn.w_triplet  * l_triplet
-                    + self.loss_fn.w_gender   * l_gender)
+        # Adversarial loss not computed on val
+        l_total = (self.loss_fn.w_identity * l_identity
+                 + self.loss_fn.w_triplet  * l_triplet
+                 + self.loss_fn.w_gender   * l_gender)
 
         # Gender accuracy — useful additional val metric
         gender_preds   = all_gender_logits.argmax(dim=1)
@@ -180,6 +191,7 @@ class Trainer:
             'identity':       l_identity.item(),
             'triplet':        l_triplet.item(),
             'gender':         l_gender.item(),
+            'adversarial':    0.0,   # not computed on val
             'gender_acc':     gender_acc,
             'mean_pos_dist':  triplet_stats['mean_pos_dist'],
             'mean_neg_dist':  triplet_stats['mean_neg_dist'],
