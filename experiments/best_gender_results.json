@@ -7,7 +7,9 @@
   "gender_head_recall_Male": 0.5606060606060606,
   "gender_head_precision_Female": 0.5915492957746479,
   "gender_head_recall_Female": 1.0,
-  "linear_probe_Fm": 0.8181818127632141,
-  "linear_probe_Fk": 0.5,
-  "disentanglement_gap": 0.3181818127632141
+  "gender_eer": 0.42617668279432985,
+  "gender_eer_threshold": 0.005792636771101851,
+  "linear_probe_Fm": 0.7727272748947144,
+  "linear_probe_Fk": 0.5954545497894287,
+  "disentanglement_gap": 0.1772727251052857
 }

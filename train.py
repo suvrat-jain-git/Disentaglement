@@ -35,6 +35,8 @@ def parse_args():
                         help='Path to checkpoint to resume from')
     parser.add_argument('--device', default='cuda',
                         help='cuda or cpu')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='Random seed — use 42, 123, 456 for multi-seed eval')
     return parser.parse_args()
 
 
@@ -43,7 +45,9 @@ def main():
     cfg  = load_configs()
 
     # ── Reproducibility ────────────────────────────────────────────────────
-    set_seed(cfg['training']['seed'])
+    seed = args.seed
+    set_seed(seed)
+    print(f"Seed: {seed}")
 
     # ── Device ─────────────────────────────────────────────────────────────
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
@@ -110,6 +114,7 @@ def main():
 
     # ── Trainer ────────────────────────────────────────────────────────────
     from trainers.trainer import Trainer
+    # best_val_loss now tracks best WS Rank-1 (higher is better, init=0)
     trainer = Trainer(
         model=model,
         loss_fn=loss_fn,
@@ -157,13 +162,40 @@ def main():
         )
 
         # Checkpoint
-        # Use train loss for best model selection.
-        # Val loss is unreliable with small val sets and many identity classes —
-        # it has been increasing since epoch 1 despite train loss improving.
-        # Best checkpoint = lowest train total loss.
-        is_best = train_losses['total'] < trainer.best_val_loss
+        # ── Rank-1 evaluation every 10 epochs ────────────────────────────
+        # Save best checkpoint by WS Rank-1 — the metric that matters.
+        # Val loss is noisy and unreliable for this task.
+        ws_rank1 = 0.0
+        if epoch % 10 == 0 or epoch == epochs:
+            from evaluators.gait_eval import (
+                extract_embeddings, aggregate_gallery_by_subject,
+            )
+            from utils.metrics import cosine_distance_matrix, compute_rank_k
+            ws_data = loaders['protocols'].get('WS')
+            if ws_data is not None:
+                model.eval()
+                with torch.no_grad():
+                    gal_emb, gal_ids = extract_embeddings(
+                        model, ws_data['gallery'], device
+                    )
+                    prb_emb, prb_ids = extract_embeddings(
+                        model, ws_data['probe'], device
+                    )
+                gal_emb_agg, gal_ids_agg = aggregate_gallery_by_subject(
+                    gal_emb, gal_ids
+                )
+                dist     = cosine_distance_matrix(prb_emb, gal_emb_agg)
+                ws_rank1 = compute_rank_k(dist, prb_ids, gal_ids_agg, k=1)
+                print(f"  WS Rank-1 (epoch {epoch}): {ws_rank1*100:.2f}%")
+                model.train()
+
+        is_best = ws_rank1 > trainer.best_val_loss
         if is_best:
-            trainer.best_val_loss = train_losses['total']
+            trainer.best_val_loss = ws_rank1
+            print(f"Best checkpoint saved (WS Rank-1={ws_rank1*100:.2f}%)")
+        elif epoch % 10 == 0 or epoch == epochs:
+            # Still save periodic checkpoints even if not best
+            pass
         trainer.save_checkpoint(epoch, val_losses, is_best=is_best)
 
     print("Training complete.")

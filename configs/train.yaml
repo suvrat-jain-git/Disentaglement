@@ -1,5 +1,5 @@
 training:
-  epochs: 100
+  epochs: 150
   batch_size: 16      # fallback only — PKSampler overrides with P*K
   num_workers: 4
   P: 8               # identities per batch (PKSampler)

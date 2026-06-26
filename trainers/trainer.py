@@ -34,7 +34,8 @@ class Trainer:
         os.makedirs(self.save_dir, exist_ok=True)
 
         # Track best validation loss for checkpointing
-        self.best_val_loss = float('inf')
+        # Tracks best WS Rank-1 (higher is better) — initialised to 0
+        self.best_val_loss = 0.0
 
     # ── Training epoch ─────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ class Trainer:
             'total': 0.0, 'identity': 0.0, 'triplet': 0.0,
             'gender': 0.0, 'adversarial': 0.0,
             'mean_pos_dist': 0.0, 'mean_neg_dist': 0.0,
-            }
+        }
         n_batches = 0
         t_start   = time.time()
 
@@ -129,7 +130,7 @@ class Trainer:
             'total': 0.0, 'identity': 0.0, 'triplet': 0.0,
             'gender': 0.0, 'adversarial': 0.0,
             'mean_pos_dist': 0.0, 'mean_neg_dist': 0.0,
-            }
+        }
         n_batches = 0
 
         # Collect all predictions across the full val set before
@@ -242,6 +243,6 @@ class Trainer:
         self.model.load_state_dict(state['model_state'])
         self.optimizer.load_state_dict(state['optimizer_state'])
         self.scheduler.load_state_dict(state['scheduler_state'])
-        self.best_val_loss = state.get('best_val_loss', float('inf'))
+        self.best_val_loss = state.get('best_val_loss', 0.0)
         print(f"Resumed from {path}  (epoch {state['epoch']})")
         return state['epoch']
